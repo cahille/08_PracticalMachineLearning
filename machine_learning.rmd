@@ -124,7 +124,7 @@ myConfusionMatrix <- confusionMatrix(myRfPrediction, myTesting$classe)
 myConfusionMatrix
 ```
 
-Note the overall accuracy of `r myConfusionMatrix$overall['Accuracy']`
+Note the overall accuracy of `r formatC(100 * myConfusionMatrix$overall['Accuracy'], format = "f", digits = 2)`%.
 
 ```{r echo=TRUE, cache=TRUE}
 myRfPredictions <- predict(myRfModel, newdata=pml_to_predict)
