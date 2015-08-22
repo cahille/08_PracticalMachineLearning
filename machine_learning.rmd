@@ -15,9 +15,9 @@ I ran some analysis on the data and found much of it to be wanting. There were m
  - if I encountered 1,000 dud values in the first 10,000 rows, I discarded the column from the data sets and stopped looking at the given column
  - if I got through the first 10,000 rows without 1,000 dud values, the column remained and I stopped looking at the given column
 
-I found that this algorithm to be MUCH faster than looking through all the values, but still dropped the relevant dud columns quite accurately, allowing me to build a model with 99.71% accuracy.
+I found that this algorithm to be MUCH faster than looking through all the values, but still dropped the relevant dud columns quite accurately, allowing me to build a model with high accuracy as detailed below.
 
-The other part of my heuristic was to compare the column names in the training set and the set for homework submission. I found the column names to be identical in every case except for the classe, X and problem_id columns. I the X and problem_id colums based on this analysis and a little input for the forums.
+The other part of my heuristic was to compare the column names in the training set and the set for homework submission. I found the column names to be identical in every case except for the classe, X and problem_id columns. I dropped the X, problem_id and num_window columns based on this analysis and a little input for the forums.
 
 ## Sample error expectation and cross-validation
 
