@@ -1,0 +1,146 @@
+---
+title: "Predicting exercise activities as per data gathered from wearable device(s)"
+output: html_document
+---
+
+## Synopsis
+
+In this paper I walk through my methodology and methods for analyzing and predicting activites from the supplied data.
+
+## Data Cleansing
+
+I ran some analysis on the data and found much of it to be wanting. There were many columns (over 100) that I was able to discard and still construct a highly accurate model. Many of the columns had NA or NULL for a large percentage (over 90%) of their values. Because the data set was large enough that iterating took a non-trivial amount of time, I ended up with the following algorithm for cleansing
+
+ - if a given value was na, null, the number 0, of length 0, the string "no" or the string "DIV/0" I considered it a dud
+ - if I encountered 1,000 dud values in the first 10,000 rows, I discarded the column from the data sets and stopped looking at the given column
+ - if I got through the first 10,000 rows without 1,000 dud values, the column remained and I stopped looking at the given column
+
+I found that this algorithm to be MUCH faster than looking through all the values, but still dropped the relevant dud columns quite accurately, allowing me to build a model with 99.71% accuracy.
+
+The other part of my heuristic was to compare the column names in the training set and the set for homework submission. I found the column names to be identical in every case except for the classe, X and problem_id columns. I the X and problem_id colums based on this analysis and a little input for the forums.
+
+## Sample error expectation and cross-validation
+
+Since I used the random forests method, there was no need for cross-validation, as per this reference http://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#ooberr
+
+## My process
+
+I start by loading the data.
+
+```{r echo=TRUE, cache=TRUE}
+library(caret)
+library(randomForest)
+library(doParallel)
+registerDoParallel(cores=4)
+
+pml_training <- read.csv("pml-training.csv")
+pml_to_predict <- read.csv("pml-testing.csv")
+```
+
+These columns I remove outside of my heuristic based on my ad hoc analysis.
+
+```{r echo=TRUE, cache=TRUE}
+
+pml_training$num_window <- NULL
+pml_to_predict$num_window <- NULL
+
+pml_training$X <- NULL
+pml_to_predict$X <- NULL
+
+pml_to_predict$problem_id <- NULL
+
+dropped <- 3
+```
+
+Here, I remove the 'dud' columns. This and the data training were by far the most expensive parts of the exercise.
+
+```{r echo=TRUE, cache=TRUE}
+dudThreshold <- 1000
+iThreshold <- 10000
+
+
+trainingNames <- names(pml_training)
+for(name in trainingNames) {
+    duds <- 0
+    
+    for(i in 1:iThreshold) {        
+        element <- pml_training[i, name]
+        if(is.na(element) || is.null(element) || element == 0 || element == "no" || nchar(as.character(element)) == 0 || element == "DIV/0") {
+            duds <- duds + 1
+            
+            if(duds >= dudThreshold) {
+                pml_training[[name]] <- NULL
+                pml_to_predict[[name]] <- NULL
+                dropped <- dropped + 1
+                break
+            }
+        }
+    }
+}
+```
+
+Note that I was able to drop `r dropped` columns from one or both sets of data.
+
+I created my training / testing partitions with a 70% / 30% ratio.
+
+```{r echo=TRUE, cache=TRUE}
+myPartitions <- createDataPartition(pml_training$classe, p=.7, list=FALSE)
+
+myTraining <- pml_training[myPartitions,]
+myTesting <- pml_training[-myPartitions,]
+```
+
+I include the following for completeness, where I compare the column names between the two sets.
+
+```{r echo=TRUE, cache=TRUE}
+trainingNames <- names(pml_training)
+predictionNames <- names(pml_to_predict)
+
+mismatchedColumnName <- ""
+mismatchedColumnCount <- 0
+
+for(trainingName in trainingNames) {
+    if(!trainingName %in% predictionNames) {
+        mismatchedColumnName <- trainingName
+        mismatchedColumnCount <- mismatchedColumnCount + 1
+    }
+}
+
+for(predictionName in predictionNames) {
+    if(!predictionName %in% trainingNames) {
+        mismatchedColumnCount <- mismatchedColumnCount + 1
+    }
+}
+```
+
+Note that because of the cleanse above, there is only `r mismatchedColumnCount` mismatched column, namely `r mismatchedColumnName`, the column we are trying to predict.
+
+I train using the random forest method, picking some train control variables that allowed me to train my model faster but still build an accurate model.
+
+```{r echo=TRUE, cache=TRUE}
+myRfModel <- train(classe ~ ., data=myTraining, method="rf", trControl=trainControl(number=5), ntree=101)
+myRfPrediction <- predict(myRfModel, newdata=myTesting)
+myConfusionMatrix <- confusionMatrix(myRfPrediction, myTesting$classe)
+myConfusionMatrix
+```
+
+Note the overall accuracy of `r myConfusionMatrix$overall['Accuracy']`
+
+```{r echo=TRUE, cache=TRUE}
+myRfPredictions <- predict(myRfModel, newdata=pml_to_predict)
+```
+
+And the correct predictions `r myRfPredictions`
+
+Finally, I write out the predictions to aid in submission.
+
+```{r echo=TRUE, cache=TRUE}
+pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0("machine_learning_problem_id_",i,".txt")
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+}
+pml_write_files(myRfPredictions)
+```
